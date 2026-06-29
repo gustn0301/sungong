@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>순공 스톱워치</title>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Special Elite', cursive;
+    background: #111;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── 배경 ── */
+  #bg-layer {
+    position: fixed; inset: 0; z-index: 0;
+    background: #1a1a2e;
+    background-image: radial-gradient(ellipse at 30% 40%, #16213e 0%, #0f0e17 100%);
+    transition: background 0.4s;
+  }
+  #bg-layer img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    filter: brightness(0.62);
+    display: block;
+  }
+
+  /* ── 메인 레이아웃 ── */
+  #app {
+    position: relative; z-index: 1;
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+
+  /* ── 우측 상단 타이머 버튼 ── */
+  #timer-toggle-btn {
+    position: fixed; top: 24px; right: 24px; z-index: 50;
+    background: rgba(255,255,255,0.12);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    color: #fff;
+    font-family: 'Special Elite', cursive;
+    font-size: 13px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    backdrop-filter: blur(6px);
+    transition: background 0.2s;
+  }
+  #timer-toggle-btn:hover { background: rgba(255,255,255,0.22); }
+
+  /* ── 스톱워치 숫자 ── */
+  #stopwatch-display {
+    font-family: 'Special Elite', cursive;
+    font-size: clamp(48px, 11vw, 130px);
+    color: #fff;
+    text-align: center;
+    letter-spacing: 0.04em;
+    text-shadow: 0 2px 32px rgba(0,0,0,0.55);
+    cursor: pointer;
+    transition: color 0.8s ease;
+    line-height: 1.1;
+    padding: 0 16px;
+  }
+
+  /* ── 정지 상태 컨트롤 ── */
+  #pause-controls {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: 40px;
+  }
+  #pause-controls.visible { display: flex; }
+
+  .ctrl-btn {
+    font-family: 'Special Elite', cursive;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    padding: 10px 36px;
+    border-radius: 28px;
+    border: 1.5px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s, transform 0.1s;
+    min-width: 180px;
+    text-align: center;
+  }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.22); }
+  .ctrl-btn:active { transform: scale(0.97); }
+  .ctrl-btn.danger { border-color: rgba(255,100,100,0.5); }
+  .ctrl-btn.danger:hover { background: rgba(200,50,50,0.25); }
+
+  /* ── 좌측 하단 배경 버튼 ── */
+  #bg-btn {
+    position: fixed; bottom: 28px; left: 28px; z-index: 50;
+    background: rgba(255,255,255,0.1);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.75);
+    font-family: 'Special Elite', cursive;
+    font-size: 12px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    backdrop-filter: blur(6px);
+    transition: background 0.2s;
+  }
+  #bg-btn:hover { background: rgba(255,255,255,0.2); }
+  #bg-input { display: none; }
+
+  /* ══════════════════════════════════════
+     PIP 타이머
+  ══════════════════════════════════════ */
+  #timer-pip {
+    display: none;
+    position: fixed;
+    top: 70px; right: 24px;
+    z-index: 200;
+    width: 300px;
+    background: rgba(10,10,20,0.82);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 18px;
+    backdrop-filter: blur(16px);
+    padding: 20px 20px 20px 20px;
+    color: #fff;
+    font-family: 'Special Elite', cursive;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  #timer-pip.visible { display: block; }
+
+  #pip-close {
+    position: absolute; top: 10px; right: 14px;
+    background: none; border: none;
+    color: rgba(255,255,255,0.5);
+    font-size: 18px; cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+  #pip-close:hover { color: #fff; }
+
+  #pip-title {
+    font-size: 12px; letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* 프리셋 선택 */
+  #preset-row {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .preset-btn {
+    font-family: 'Special Elite', cursive;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.8);
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s;
+    letter-spacing: 0.04em;
+  }
+  .preset-btn:hover, .preset-btn.active {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.6);
+    color: #fff;
+  }
+
+  /* 사용자 지정 입력 */
+  #custom-time-row {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 14px;
+    justify-content: center;
+  }
+  #custom-time-row.visible { display: flex; }
+  .time-input {
+    width: 46px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'Special Elite', cursive;
+    font-size: 16px;
+    text-align: center;
+    padding: 4px 2px;
+    outline: none;
+  }
+  .time-input:focus { border-color: rgba(255,255,255,0.6); }
+  .time-sep { font-size: 18px; opacity: 0.6; }
+
+  /* 타이머 디스플레이 */
+  #timer-display {
+    font-size: 42px;
+    text-align: center;
+    letter-spacing: 0.06em;
+    margin: 6px 0 14px;
+    text-shadow: 0 0 20px rgba(255,255,255,0.15);
+  }
+  #timer-display.warning { color: #ff9944; }
+  #timer-display.done { color: #ff4444; animation: blink 0.7s infinite alternate; }
+  @keyframes blink { from { opacity: 1; } to { opacity: 0.4; } }
+
+  /* 타이머 버튼들 */
+  #timer-btn-row {
+    display: flex; gap: 8px; justify-content: center;
+    flex-wrap: wrap;
+  }
+  .pip-btn {
+    font-family: 'Special Elite', cursive;
+    font-size: 12px;
+    padding: 7px 18px;
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: background 0.18s;
+  }
+  .pip-btn:hover { background: rgba(255,255,255,0.22); }
+  .pip-btn.primary {
+    background: rgba(100,180,255,0.18);
+    border-color: rgba(100,180,255,0.5);
+  }
+  .pip-btn.primary:hover { background: rgba(100,180,255,0.32); }
+
+  /* 타이머 완료 알림 */
+  #timer-done-msg {
+    display: none;
+    text-align: center;
+    font-size: 12px;
+    color: #ff9944;
+    letter-spacing: 0.06em;
+    margin-top: 8px;
+  }
+
+  /* 로그인 오버레이 */
+  #login-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: #0f0e17;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #login-overlay .inner {
+    text-align: center; color: #fff;
+    font-family: 'Special Elite', cursive;
+  }
+  #login-overlay h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 32px; margin-bottom: 12px; letter-spacing: 0.04em;
+  }
+  #login-overlay p { font-size: 13px; opacity: 0.55; letter-spacing: 0.05em; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid rgba(255,255,255,0.15);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 20px auto 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- 배경 -->
+<div id="bg-layer"><div id="bg-img-wrap"></div></div>
+
+<!-- 로그인 오버레이 -->
+<div id="login-overlay">
+  <div class="inner">
+    <h2>순공 스톱워치</h2>
+    <p>잠시 기다려 주세요...</p>
+    <div class="spinner"></div>
+  </div>
+</div>
+
+<!-- 우측 상단 타이머 버튼 -->
+<button id="timer-toggle-btn">⏱ 타이머</button>
+
+<!-- 메인 앱 -->
+<div id="app">
+  <div id="stopwatch-display">00:00.00</div>
+  <div id="pause-controls">
+    <button class="ctrl-btn" id="resume-btn">계속하기</button>
+    <button class="ctrl-btn danger" id="reset-btn">시간 초기화</button>
+  </div>
+</div>
+
+<!-- 좌측 하단 배경 버튼 -->
+<button id="bg-btn">📷 배경 변경</button>
+<input type="file" id="bg-input" accept="image/*" />
+
+<!-- PIP 타이머 -->
+<div id="timer-pip">
+  <button id="pip-close">✕</button>
+  <div id="pip-title">타이머</div>
+
+  <div id="preset-row">
+    <button class="preset-btn" data-sec="4800">국어 (1:20)</button>
+    <button class="preset-btn" data-sec="6000">수학 (1:40)</button>
+    <button class="preset-btn" data-sec="4200">영어 (1:10)</button>
+    <button class="preset-btn" data-sec="custom">사용자 지정</button>
+  </div>
+
+  <div id="custom-time-row">
+    <input class="time-input" id="ct-h" type="number" min="0" max="23" value="0" placeholder="h" />
+    <span class="time-sep">:</span>
+    <input class="time-input" id="ct-m" type="number" min="0" max="59" value="0" placeholder="m" />
+    <span class="time-sep">:</span>
+    <input class="time-input" id="ct-s" type="number" min="1" max="59" value="1" placeholder="s" />
+  </div>
+
+  <div id="timer-display">--:--:--</div>
+  <div id="timer-done-msg">⏰ 시간 종료!</div>
+
+  <div id="timer-btn-row">
+    <button class="pip-btn primary" id="timer-start-btn">시작</button>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+// ── Firebase 초기화 ──────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyC8bC-J22KDp3oAEhKVmM5EX__iy8lHlag",
+  authDomain: "dgpallete.firebaseapp.com",
+  projectId: "dgpallete",
+  storageBucket: "dgpallete.firebasestorage.app",
+  messagingSenderId: "121932121210",
+  appId: "1:121932121210:web:839213781d7c02d0dce7c3"
+};
+const fbApp  = initializeApp(firebaseConfig);
+const auth   = getAuth(fbApp);
+const db     = getFirestore(fbApp);
+const storage = getStorage(fbApp);
+
+// ── 전역 상태 ────────────────────────────────────────────
+let uid = null;
+
+/* ─── 스톱워치 ─── */
+let swElapsed   = 0;       // ms
+let swRunning   = false;
+let swStartedAt = null;    // Date.now() 기준
+let swInterval  = null;
+let swPaused    = false;
+let swCompact   = false;   // false=기본모드(밀리초), true=간결모드
+let swUninterrupted = true; // 한번도 정지 안 했는지 여부
+
+/* ─── 터치 감지 ─── */
+let tapCount    = 0;
+let tapTimer    = null;
+const DBL_TAP_MS = 400;
+
+/* ─── 타이머 ─── */
+let timerPresetSec   = 0;
+let timerCustomSec   = 0;
+let timerRemaining   = 0;
+let timerRunning     = false;
+let timerStartedAt   = null;
+let timerElapsedAtPause = 0;
+let timerInterval    = null;
+let timerPaused      = false;
+let timerDone        = false;
+let timerBeepInterval = null;
+
+// ── DOM refs ─────────────────────────────────────────────
+const loginOverlay   = document.getElementById('login-overlay');
+const bgLayer        = document.getElementById('bg-layer');
+const bgImgWrap      = document.getElementById('bg-img-wrap');
+const swDisplay      = document.getElementById('stopwatch-display');
+const pauseControls  = document.getElementById('pause-controls');
+const resumeBtn      = document.getElementById('resume-btn');
+const resetBtn       = document.getElementById('reset-btn');
+const bgBtn          = document.getElementById('bg-btn');
+const bgInput        = document.getElementById('bg-input');
+const timerToggleBtn = document.getElementById('timer-toggle-btn');
+const timerPip       = document.getElementById('timer-pip');
+const pipClose       = document.getElementById('pip-close');
+const presetBtns     = document.querySelectorAll('.preset-btn');
+const customRow      = document.getElementById('custom-time-row');
+const ctH            = document.getElementById('ct-h');
+const ctM            = document.getElementById('ct-m');
+const ctS            = document.getElementById('ct-s');
+const timerDisplay   = document.getElementById('timer-display');
+const timerDoneMsg   = document.getElementById('timer-done-msg');
+const timerBtnRow    = document.getElementById('timer-btn-row');
+const timerStartBtn  = document.getElementById('timer-start-btn');
+
+// ════════════════════════════════════════════════════════
+//  Firebase 인증 + 데이터 로드
+// ════════════════════════════════════════════════════════
+signInAnonymously(auth).catch(console.error);
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+  uid = user.uid;
+  await loadUserData();
+  loginOverlay.style.display = 'none';
+  // 스톱워치 자동 재개
+  startStopwatch();
+});
+
+async function loadUserData() {
+  try {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.bgURL) applyBgURL(d.bgURL);
+      if (d.swElapsed != null) {
+        swElapsed = d.swElapsed;
+        swUninterrupted = d.swUninterrupted ?? true;
+      }
+    }
+  } catch(e) { console.warn('loadUserData', e); }
+}
+
+async function saveUserData(extra = {}) {
+  if (!uid) return;
+  try {
+    await setDoc(doc(db, 'users', uid), {
+      swElapsed,
+      swUninterrupted,
+      ...extra
+    }, { merge: true });
+  } catch(e) { console.warn('saveUserData', e); }
+}
+
+// ════════════════════════════════════════════════════════
+//  배경 이미지
+// ════════════════════════════════════════════════════════
+bgBtn.addEventListener('click', () => bgInput.click());
+bgInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file || !uid) return;
+  bgBtn.textContent = '업로드 중…';
+  try {
+    const storageRef = ref(storage, `backgrounds/${uid}/bg.jpg`);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    applyBgURL(url);
+    await saveUserData({ bgURL: url });
+    bgBtn.textContent = '📷 배경 변경';
+  } catch(e) {
+    console.error(e);
+    bgBtn.textContent = '📷 배경 변경';
+    alert('배경 업로드 실패: ' + e.message);
+  }
+});
+
+function applyBgURL(url) {
+  bgImgWrap.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = url;
+  bgImgWrap.appendChild(img);
+}
+
+// ════════════════════════════════════════════════════════
+//  스톱워치 로직
+// ════════════════════════════════════════════════════════
+function startStopwatch() {
+  if (swRunning) return;
+  swRunning   = true;
+  swPaused    = false;
+  swStartedAt = Date.now() - swElapsed;
+  swInterval  = setInterval(tickSW, 33);
+  pauseControls.classList.remove('visible');
+}
+
+function pauseStopwatch() {
+  if (!swRunning) return;
+  swRunning = false;
+  swUninterrupted = false;
+  clearInterval(swInterval);
+  swElapsed = Date.now() - swStartedAt;
+  swPaused  = true;
+  pauseControls.classList.add('visible');
+  saveUserData();
+}
+
+function resetStopwatch() {
+  clearInterval(swInterval);
+  swRunning       = false;
+  swElapsed       = 0;
+  swPaused        = false;
+  swStartedAt     = null;
+  swUninterrupted = true;
+  pauseControls.classList.remove('visible');
+  swDisplay.style.color = '#fff';
+  renderSW(0);
+  saveUserData();
+  startStopwatch();
+}
+
+function tickSW() {
+  swElapsed = Date.now() - swStartedAt;
+  renderSW(swElapsed);
+  colorSW(swElapsed);
+}
+
+function renderSW(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const hrs  = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const mils = Math.floor((ms % 1000) / 10);
+
+  if (swCompact) {
+    // 간결 모드: hh:mm:ss (항상 시 표시)
+    const hStr = String(hrs).padStart(2,'0');
+    const mStr = String(mins).padStart(2,'0');
+    const sStr = String(secs).padStart(2,'0');
+    swDisplay.textContent = `${hStr}:${mStr}:${sStr}`;
+  } else {
+    // 기본 모드: (h:) mm:ss.ms
+    const mStr = String(mins).padStart(2,'0');
+    const sStr = String(secs).padStart(2,'0');
+    const msStr = String(mils).padStart(2,'0');
+    if (hrs > 0) {
+      swDisplay.textContent = `${hrs}:${mStr}:${sStr}.${msStr}`;
+    } else {
+      swDisplay.textContent = `${mStr}:${sStr}.${msStr}`;
+    }
+  }
+}
+
+function colorSW(ms) {
+  if (!swUninterrupted) { swDisplay.style.color = '#fff'; return; }
+  const mins30 = 30 * 60 * 1000;
+  const mins60 = 60 * 60 * 1000;
+  if (ms < mins30) {
+    swDisplay.style.color = '#fff';
+  } else {
+    const t = Math.min((ms - mins30) / (mins60 - mins30), 1);
+    const r = 255;
+    const g = Math.round(255 * (1 - t));
+    const b = Math.round(255 * (1 - t));
+    swDisplay.style.color = `rgb(${r},${g},${b})`;
+  }
+}
+
+// ── 터치 / 클릭 처리 ──────────────────────────────────
+const appEl = document.getElementById('app');
+
+appEl.addEventListener('click', e => {
+  // PIP, 버튼, 오버레이 클릭은 무시
+  if (e.target.closest('#timer-pip') ||
+      e.target.closest('#timer-toggle-btn') ||
+      e.target.closest('#bg-btn') ||
+      e.target.closest('#pause-controls')) return;
+
+  tapCount++;
+  clearTimeout(tapTimer);
+
+  if (tapCount === 1) {
+    // 싱글 탭: 모드 전환
+    tapTimer = setTimeout(() => {
+      swCompact = !swCompact;
+      renderSW(swElapsed);
+      tapCount = 0;
+    }, DBL_TAP_MS);
+  } else if (tapCount >= 2) {
+    tapCount = 0;
+    clearTimeout(tapTimer);
+    // 더블 탭
+    if (swRunning) {
+      pauseStopwatch();
+    } else if (swPaused) {
+      // 정지 상태에서 더블탭 → 재개
+      startStopwatch();
+    }
+  }
+});
+
+resumeBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (swPaused) startStopwatch();
+});
+
+resetBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (confirm('스톱워치를 초기화하시겠습니까?')) resetStopwatch();
+});
+
+// ── 종료 전 저장 ──────────────────────────────────────
+window.addEventListener('beforeunload', () => {
+  if (swRunning) swElapsed = Date.now() - swStartedAt;
+  saveUserData();
+});
+
+// ════════════════════════════════════════════════════════
+//  타이머 PIP
+// ════════════════════════════════════════════════════════
+timerToggleBtn.addEventListener('click', () => {
+  timerPip.classList.toggle('visible');
+  if (timerPip.classList.contains('visible')) {
+    renderTimerDisplay(timerPresetSec || 0);
+  }
+});
+pipClose.addEventListener('click', () => timerPip.classList.remove('visible'));
+
+// 프리셋 선택
+presetBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    presetBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const sec = btn.dataset.sec;
+    if (sec === 'custom') {
+      customRow.classList.add('visible');
+      timerPresetSec = getCustomSec();
+    } else {
+      customRow.classList.remove('visible');
+      timerPresetSec = parseInt(sec);
+    }
+    renderTimerDisplay(timerPresetSec);
+    resetTimerState();
+  });
+});
+
+// 사용자 지정 입력 변경
+[ctH, ctM, ctS].forEach(inp => {
+  inp.addEventListener('input', () => {
+    timerPresetSec = getCustomSec();
+    renderTimerDisplay(timerPresetSec);
+  });
+});
+
+function getCustomSec() {
+  const h = Math.min(23, Math.max(0, parseInt(ctH.value)||0));
+  const m = Math.min(59, Math.max(0, parseInt(ctM.value)||0));
+  const s = Math.min(59, Math.max(1, parseInt(ctS.value)||1));
+  return h*3600 + m*60 + s;
+}
+
+function renderTimerDisplay(sec) {
+  if (!sec && sec !== 0) { timerDisplay.textContent = '--:--:--'; return; }
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  timerDisplay.textContent =
+    `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function resetTimerState() {
+  clearInterval(timerInterval);
+  clearInterval(timerBeepInterval);
+  timerRunning = false;
+  timerPaused  = false;
+  timerDone    = false;
+  timerRemaining = timerPresetSec;
+  timerElapsedAtPause = 0;
+  timerDisplay.className = '';
+  timerDoneMsg.style.display = 'none';
+  renderBtnRowIdle();
+}
+
+// 버튼 상태 함수들
+function renderBtnRowIdle() {
+  timerBtnRow.innerHTML = '';
+  if (!timerPresetSec) return;
+  const startBtn = mkBtn('시작', 'primary', startTimer);
+  timerBtnRow.appendChild(startBtn);
+}
+
+function renderBtnRowRunning() {
+  timerBtnRow.innerHTML = '';
+  timerBtnRow.appendChild(mkBtn('정지', '', pauseTimer));
+}
+
+function renderBtnRowPaused() {
+  timerBtnRow.innerHTML = '';
+  timerBtnRow.appendChild(mkBtn('계속하기', 'primary', resumeTimer));
+  timerBtnRow.appendChild(mkBtn('재설정', '', () => {
+    resetTimerState();
+    // 재설정 시 이전 세팅 시간이 남아있는 상태로
+    renderTimerDisplay(timerPresetSec);
+  }));
+}
+
+function mkBtn(label, cls, fn) {
+  const b = document.createElement('button');
+  b.className = 'pip-btn' + (cls ? ' ' + cls : '');
+  b.textContent = label;
+  b.addEventListener('click', fn);
+  return b;
+}
+
+function startTimer() {
+  if (!timerPresetSec) return;
+  timerRemaining = timerPresetSec - timerElapsedAtPause;
+  if (timerRemaining <= 0) { timerRemaining = timerPresetSec; timerElapsedAtPause = 0; }
+  timerRunning   = true;
+  timerPaused    = false;
+  timerDone      = false;
+  timerStartedAt = Date.now();
+  timerDisplay.className = '';
+  timerDoneMsg.style.display = 'none';
+  clearInterval(timerInterval);
+  timerInterval = setInterval(tickTimer, 250);
+  renderBtnRowRunning();
+}
+
+function pauseTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  timerPaused  = true;
+  timerElapsedAtPause = timerPresetSec - timerRemaining;
+  renderBtnRowPaused();
+}
+
+function resumeTimer() {
+  startTimer();
+}
+
+function tickTimer() {
+  const elapsed = Math.floor((Date.now() - timerStartedAt) / 1000);
+  const remaining = timerRemaining - elapsed;
+
+  if (remaining <= 0) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    timerDone    = true;
+    timerElapsedAtPause = 0;
+    renderTimerDisplay(0);
+    timerDisplay.className = 'done';
+    timerDoneMsg.style.display = 'block';
+    // 비프음
+    beepAlarm();
+    timerBtnRow.innerHTML = '';
+    timerBtnRow.appendChild(mkBtn('재설정', '', () => {
+      clearInterval(timerBeepInterval);
+      resetTimerState();
+      renderTimerDisplay(timerPresetSec);
+    }));
+    return;
+  }
+
+  // 남은 시간 10분 이하 경고색
+  if (remaining <= 600) timerDisplay.className = 'warning';
+  renderTimerDisplay(remaining);
+}
+
+function beepAlarm() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    function beep() {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.3, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      o.start(ctx.currentTime);
+      o.stop(ctx.currentTime + 0.4);
+    }
+    beep();
+    let cnt = 0;
+    timerBeepInterval = setInterval(() => {
+      if (++cnt >= 5) clearInterval(timerBeepInterval);
+      beep();
+    }, 800);
+  } catch(e) {}
+}
+
+// 타이머 시작 버튼 초기
+timerStartBtn.addEventListener('click', () => {
+  if (timerPresetSec) startTimer();
+});
+</script>
+</body>
+</html>
