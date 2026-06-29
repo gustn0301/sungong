@@ -514,8 +514,10 @@ function enterApp() {
   loadLocalState();
   // 이전에 시간이 기록돼 있으면 정지 상태로 표시, 없으면 시작 버튼 대기
   if (swElapsed > 0) {
+    swPaused      = true;   // 정지 상태로 복원
+    swEverStarted = true;   // 탭 제스처·계속하기 버튼 활성화
     renderSW(swElapsed);
-    showPauseControls(); // 종료 전 시간이 있으면 정지 상태로 복원
+    showPauseControls();
   } else {
     renderSW(0);
     showStartButton();
@@ -690,14 +692,22 @@ function renderSW(ms) {
 
 function colorSW(ms) {
   if (!swUninterrupted) { swDisplay.style.color = '#fff'; return; }
-  const m30 = 30 * 60 * 1000;
-  const m60 = 60 * 60 * 1000;
-  if (ms < m30) {
+  const m15 = 15 * 60 * 1000;  // 15분: 파스텔 빨강 시작
+  const m30 = 30 * 60 * 1000;  // 30분: 색 변화 본격화
+  const m60 = 60 * 60 * 1000;  // 60분: 진한 빨강
+  if (ms < m15) {
     swDisplay.style.color = '#fff';
+  } else if (ms < m30) {
+    // 15~30분: 흰색 → 파스텔 빨강 (rgb 255, 180, 180)
+    const t = (ms - m15) / (m30 - m15);
+    const g = Math.round(255 - t * (255 - 180));
+    const b = Math.round(255 - t * (255 - 180));
+    swDisplay.style.color = `rgb(255,${g},${b})`;
   } else {
+    // 30~60분: 파스텔 빨강 → 진한 빨강
     const t = Math.min((ms - m30) / (m60 - m30), 1);
-    const g = Math.round(255 * (1 - t * 0.95));
-    const b = Math.round(255 * (1 - t * 0.95));
+    const g = Math.round(180 - t * 167);
+    const b = Math.round(180 - t * 167);
     swDisplay.style.color = `rgb(255,${g},${b})`;
   }
 }
